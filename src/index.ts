@@ -257,6 +257,11 @@ const TOOLS = [
   },
 ];
 
+// Handle ping method
+async function handlePing(): Promise<any> {
+  return {}; // Simple pong response
+}
+
 // Handle initialize method
 async function handleInitialize(params: any): Promise<any> {
   return {
@@ -551,6 +556,10 @@ async function handleMcpRequest(request: JsonRpcRequest, config: Config): Promis
     let result: any;
 
     switch (request.method) {
+      case 'ping':
+        result = await handlePing();
+        break;
+        
       case 'initialize':
         result = await handleInitialize(request.params);
         break;
@@ -630,6 +639,18 @@ app.all('/mcp', async (req: Request, res: Response) => {
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+// Root endpoint for basic info
+app.get('/', (req: Request, res: Response) => {
+  res.json({
+    ...SERVER_INFO,
+    description: 'Twitter Spaces MCP Server - Download and transcribe Twitter Spaces using AI',
+    endpoints: {
+      health: '/health',
+      mcp: '/mcp'
+    }
+  });
 });
 
 // Start server
