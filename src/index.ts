@@ -1,11 +1,3 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  CallToolRequest,
-  McpError,
-  ErrorCode,
-} from '@modelcontextprotocol/sdk/types.js';
 import express, { Request, Response } from 'express';
 
 // Types for API responses
@@ -64,6 +56,25 @@ interface SpaceAvailabilityResponse {
 interface Config {
   apiUrl: string;
   timeout?: number;
+}
+
+// JSON-RPC request/response interfaces
+interface JsonRpcRequest {
+  jsonrpc: '2.0';
+  id: string | number;
+  method: string;
+  params?: any;
+}
+
+interface JsonRpcResponse {
+  jsonrpc: '2.0';
+  id: string | number;
+  result?: any;
+  error?: {
+    code: number;
+    message: string;
+    data?: any;
+  };
 }
 
 // Utility function to make API requests
@@ -137,110 +148,114 @@ function parseConfig(query: any): Config {
   };
 }
 
-// Tool handlers
+// Tool definitions (lazy loading - no config required)
+const TOOLS = [
+  {
+    name: 'check_space_availability',
+    description: 'Check if a Twitter Space is available for download',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        space_url: {
+          type: 'string',
+          description: 'Full Twitter Space URL (e.g., https://x.com/i/spaces/1ZkKzYLnWOLxv)',
+        },
+      },
+      required: ['space_url'],
+    },
+  },
+  {
+    name: 'download_twitter_space',
+    description: 'Download a Twitter Space and wait for completion',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        space_url: {
+          type: 'string',
+          description: 'Full Twitter Space URL (e.g., https://x.com/i/spaces/1ZkKzYLnWOLxv)',
+        },
+        wait_for_completion: {
+          type: 'boolean',
+          description: 'Whether to wait for download completion before returning',
+          default: true,
+        },
+      },
+      required: ['space_url'],
+    },
+  },
+  {
+    name: 'transcribe_space',
+    description: 'Transcribe a downloaded Twitter Space using AI',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        space_id: {
+          type: 'string',
+          description: 'Space ID (e.g., 1ZkKzYLnWOLxv)',
+        },
+        wait_for_completion: {
+          type: 'boolean',
+          description: 'Whether to wait for transcription completion before returning',
+          default: true,
+        },
+      },
+      required: ['space_id'],
+    },
+  },
+  {
+    name: 'get_transcript',
+    description: 'Download transcript in various formats (json, txt, paragraphs, timecoded, summary)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        space_id: {
+          type: 'string',
+          description: 'Space ID (e.g., 1ZkKzYLnWOLxv)',
+        },
+        format: {
+          type: 'string',
+          enum: ['json', 'txt', 'paragraphs', 'timecoded', 'summary'],
+          description: 'Transcript format to download',
+          default: 'paragraphs',
+        },
+      },
+      required: ['space_id'],
+    },
+  },
+  {
+    name: 'list_spaces',
+    description: 'List all downloaded Twitter Spaces',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'download_and_transcribe_space',
+    description: 'Download a Twitter Space and automatically transcribe it',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        space_url: {
+          type: 'string',
+          description: 'Full Twitter Space URL (e.g., https://x.com/i/spaces/1ZkKzYLnWOLxv)',
+        },
+      },
+      required: ['space_url'],
+    },
+  },
+];
+
+// Handle tools/list method
 async function handleListTools(): Promise<any> {
   return {
-    tools: [
-      {
-        name: 'check_space_availability',
-        description: 'Check if a Twitter Space is available for download',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            space_url: {
-              type: 'string',
-              description: 'Full Twitter Space URL (e.g., https://x.com/i/spaces/1ZkKzYLnWOLxv)',
-            },
-          },
-          required: ['space_url'],
-        },
-      },
-      {
-        name: 'download_twitter_space',
-        description: 'Download a Twitter Space and wait for completion',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            space_url: {
-              type: 'string',
-              description: 'Full Twitter Space URL (e.g., https://x.com/i/spaces/1ZkKzYLnWOLxv)',
-            },
-            wait_for_completion: {
-              type: 'boolean',
-              description: 'Whether to wait for download completion before returning',
-              default: true,
-            },
-          },
-          required: ['space_url'],
-        },
-      },
-      {
-        name: 'transcribe_space',
-        description: 'Transcribe a downloaded Twitter Space using AI',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            space_id: {
-              type: 'string',
-              description: 'Space ID (e.g., 1ZkKzYLnWOLxv)',
-            },
-            wait_for_completion: {
-              type: 'boolean',
-              description: 'Whether to wait for transcription completion before returning',
-              default: true,
-            },
-          },
-          required: ['space_id'],
-        },
-      },
-      {
-        name: 'get_transcript',
-        description: 'Download transcript in various formats (json, txt, paragraphs, timecoded, summary)',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            space_id: {
-              type: 'string',
-              description: 'Space ID (e.g., 1ZkKzYLnWOLxv)',
-            },
-            format: {
-              type: 'string',
-              enum: ['json', 'txt', 'paragraphs', 'timecoded', 'summary'],
-              description: 'Transcript format to download',
-              default: 'paragraphs',
-            },
-          },
-          required: ['space_id'],
-        },
-      },
-      {
-        name: 'list_spaces',
-        description: 'List all downloaded Twitter Spaces',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'download_and_transcribe_space',
-        description: 'Download a Twitter Space and automatically transcribe it',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            space_url: {
-              type: 'string',
-              description: 'Full Twitter Space URL (e.g., https://x.com/i/spaces/1ZkKzYLnWOLxv)',
-            },
-          },
-          required: ['space_url'],
-        },
-      },
-    ],
+    tools: TOOLS
   };
 }
 
-async function handleCallTool(request: CallToolRequest, config: Config): Promise<any> {
-  const { name, arguments: args } = request.params;
+// Handle tools/call method
+async function handleCallTool(params: any, config: Config): Promise<any> {
+  const { name, arguments: args } = params;
 
   try {
     switch (name) {
@@ -510,23 +525,40 @@ async function handleCallTool(request: CallToolRequest, config: Config): Promise
   }
 }
 
-// Handle MCP requests manually
-async function handleMcpRequest(request: any, config: Config): Promise<any> {
+// Handle MCP JSON-RPC requests
+async function handleMcpRequest(request: JsonRpcRequest, config: Config): Promise<JsonRpcResponse> {
   try {
-    if (request.method === 'tools/list') {
-      return await handleListTools();
-    } else if (request.method === 'tools/call') {
-      return await handleCallTool(request, config);
+    let result: any;
+
+    switch (request.method) {
+      case 'tools/list':
+        result = await handleListTools();
+        break;
+      
+      case 'tools/call':
+        result = await handleCallTool(request.params, config);
+        break;
+      
+      default:
+        return {
+          jsonrpc: '2.0',
+          id: request.id,
+          error: {
+            code: -32601,
+            message: `Method not found: ${request.method}`
+          }
+        };
     }
-    
+
     return {
-      error: {
-        code: -32601,
-        message: `Method not found: ${request.method}`
-      }
+      jsonrpc: '2.0',
+      id: request.id,
+      result
     };
   } catch (error) {
     return {
+      jsonrpc: '2.0',
+      id: request.id,
       error: {
         code: -32603,
         message: error instanceof Error ? error.message : 'Internal error'
@@ -546,17 +578,18 @@ app.all('/mcp', async (req: Request, res: Response) => {
     
     // Handle the MCP request
     if (req.method === 'GET') {
-      // Return server info for discovery
+      // Return server info for discovery (lazy loading)
       res.json({
         name: 'twitter-spaces',
         version: '1.0.0',
         description: 'Download and transcribe Twitter Spaces using AI',
         capabilities: {
           tools: {}
-        }
+        },
+        tools: TOOLS // Return tools without requiring config
       });
     } else if (req.method === 'POST') {
-      // Handle MCP protocol messages
+      // Handle MCP JSON-RPC protocol messages
       const response = await handleMcpRequest(req.body, config);
       res.json(response);
     } else {
