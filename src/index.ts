@@ -1,12 +1,12 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   CallToolRequest,
+  McpError,
+  ErrorCode,
 } from '@modelcontextprotocol/sdk/types.js';
 import express, { Request, Response } from 'express';
-import { URL } from 'url';
 
 // Types for API responses
 interface DownloadResponse {
@@ -137,8 +137,15 @@ function parseConfig(query: any): Config {
   };
 }
 
+// Global server instance
+let mcpServer: Server | null = null;
+
 // Create MCP server
-function createMcpServer(config: Config) {
+function createMcpServer(config: Config): Server {
+  if (mcpServer) {
+    return mcpServer;
+  }
+
   const server = new Server(
     {
       name: 'twitter-spaces',
@@ -513,19 +520,57 @@ function createMcpServer(config: Config) {
         }
 
         default:
-          throw new Error(`Unknown tool: ${name}`);
+          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
       }
     } catch (error) {
-      return {
-        content: [{
-          type: 'text',
-          text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-        }]
-      };
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   });
 
+  mcpServer = server;
   return server;
+}
+
+// Handle MCP requests manually
+async function handleMcpRequest(request: any, config: Config): Promise<any> {
+  const server = createMcpServer(config);
+  
+  try {
+    if (request.method === 'tools/list') {
+      const handler = server.getRequestHandler(ListToolsRequestSchema);
+      if (handler) {
+        return await handler(request);
+      }
+    } else if (request.method === 'tools/call') {
+      const handler = server.getRequestHandler(CallToolRequestSchema);
+      if (handler) {
+        return await handler(request);
+      }
+    }
+    
+    throw new McpError(ErrorCode.MethodNotFound, `Method not found: ${request.method}`);
+  } catch (error: any) {
+    if (error instanceof McpError) {
+      return {
+        error: {
+          code: error.code,
+          message: error.message
+        }
+      };
+    }
+    return {
+      error: {
+        code: ErrorCode.InternalError,
+        message: error instanceof Error ? error.message : 'Unknown error'
+      }
+    };
+  }
 }
 
 // Create Express app for Streamable HTTP
@@ -537,20 +582,20 @@ app.all('/mcp', async (req: Request, res: Response) => {
     // Parse configuration from query parameters
     const config = parseConfig(req.query);
     
-    // Create MCP server with config
-    const server = createMcpServer(config);
-    
     // Handle the MCP request
     if (req.method === 'GET') {
-      // Return server info
+      // Return server info for discovery
       res.json({
         name: 'twitter-spaces',
         version: '1.0.0',
         description: 'Download and transcribe Twitter Spaces using AI',
+        capabilities: {
+          tools: {}
+        }
       });
     } else if (req.method === 'POST') {
       // Handle MCP protocol messages
-      const response = await server.handleRequest(req.body);
+      const response = await handleMcpRequest(req.body, config);
       res.json(response);
     } else {
       res.status(405).json({ error: 'Method not allowed' });
