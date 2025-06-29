@@ -61,14 +61,14 @@ interface Config {
 // JSON-RPC request/response interfaces
 interface JsonRpcRequest {
   jsonrpc: '2.0';
-  id: string | number;
+  id: string | number | null;
   method: string;
   params?: any;
 }
 
 interface JsonRpcResponse {
   jsonrpc: '2.0';
-  id: string | number;
+  id: string | number | null;
   result?: any;
   error?: {
     code: number;
@@ -76,6 +76,17 @@ interface JsonRpcResponse {
     data?: any;
   };
 }
+
+// MCP Server capabilities
+const SERVER_CAPABILITIES = {
+  tools: {},
+};
+
+// Server info
+const SERVER_INFO = {
+  name: 'twitter-spaces',
+  version: '1.0.0',
+};
 
 // Utility function to make API requests
 async function makeApiRequest(
@@ -245,6 +256,15 @@ const TOOLS = [
     },
   },
 ];
+
+// Handle initialize method
+async function handleInitialize(params: any): Promise<any> {
+  return {
+    protocolVersion: '2024-11-05',
+    capabilities: SERVER_CAPABILITIES,
+    serverInfo: SERVER_INFO,
+  };
+}
 
 // Handle tools/list method
 async function handleListTools(): Promise<any> {
@@ -531,6 +551,10 @@ async function handleMcpRequest(request: JsonRpcRequest, config: Config): Promis
     let result: any;
 
     switch (request.method) {
+      case 'initialize':
+        result = await handleInitialize(request.params);
+        break;
+        
       case 'tools/list':
         result = await handleListTools();
         break;
@@ -580,18 +604,18 @@ app.all('/mcp', async (req: Request, res: Response) => {
     if (req.method === 'GET') {
       // Return server info for discovery (lazy loading)
       res.json({
-        name: 'twitter-spaces',
-        version: '1.0.0',
+        ...SERVER_INFO,
         description: 'Download and transcribe Twitter Spaces using AI',
-        capabilities: {
-          tools: {}
-        },
+        capabilities: SERVER_CAPABILITIES,
         tools: TOOLS // Return tools without requiring config
       });
     } else if (req.method === 'POST') {
       // Handle MCP JSON-RPC protocol messages
       const response = await handleMcpRequest(req.body, config);
       res.json(response);
+    } else if (req.method === 'DELETE') {
+      // Handle DELETE for cleanup (optional)
+      res.json({ message: 'Session ended' });
     } else {
       res.status(405).json({ error: 'Method not allowed' });
     }
