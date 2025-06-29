@@ -1,0 +1,24 @@
+runtime: "typescript"
+startCommand:
+  type: "http"
+  configSchema:
+    type: "object"
+    required: ["apiUrl"]
+    properties:
+      apiUrl:
+        type: "string"
+        title: "API URL"
+        description: "Base URL of the Twitter Spaces API backend"
+        default: "http://localhost:8000"
+      timeout:
+        type: "number"
+        title: "Request Timeout"
+        description: "Timeout in seconds for API requests"
+        default: 30
+        minimum: 10
+        maximum: 300
+  exampleConfig:
+    apiUrl: "https://your-api-domain.com"
+    timeout: 60
+env:
+  NODE_ENV: "production"

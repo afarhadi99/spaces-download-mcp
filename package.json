@@ -1,0 +1,25 @@
+{
+  "name": "twitter-spaces-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for downloading and transcribing Twitter Spaces",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "keywords": ["mcp", "twitter", "spaces", "transcription", "ai"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@smithery/sdk": "^0.0.6",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
