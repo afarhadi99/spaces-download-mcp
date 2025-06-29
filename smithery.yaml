@@ -1,4 +1,4 @@
-runtime: "typescript"
+runtime: "container"
 startCommand:
   type: "http"
   configSchema:
@@ -20,5 +20,8 @@ startCommand:
   exampleConfig:
     apiUrl: "https://your-api-domain.com"
     timeout: 60
+build:
+  dockerfile: "Dockerfile"
+  dockerBuildPath: "."
 env:
   NODE_ENV: "production"
